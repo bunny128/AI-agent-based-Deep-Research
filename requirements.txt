@@ -1,0 +1,30 @@
+# Core LangChain + LangGraph
+langchain
+langgraph
+langchain-core
+langchain-community
+
+# LLM Provider (Groq)
+langchain-groq
+
+# Tools
+arxiv
+wikipedia
+tavily-python  # For TavilySearchResults tool
+
+# Environment Variables
+python-dotenv
+
+# Typing
+pydantic
+typing_extensions
+
+# Display / Jupyter support (optional, useful for IPython.display.Image)
+ipykernel
+IPython
+graphviz  # Needed for graph.draw_mermaid_png()
+
+# Optional (if not already installed by dependencies)
+requests  # Often used under the hood by Tavily/wikipedia/arxiv APIs
+
+streamlit
