@@ -11,27 +11,36 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import TypedDict
 from typing import Annotated
+import re
+
+# Load .env file
+load_dotenv()
 
 # Streamlit UI
-st.set_page_config(page_title="Deep Research AI Agent ", layout="centered")
-st.title(" Deep Research AI Agent")
+st.set_page_config(page_title="Deep Research AI Agent", layout="centered")
+st.title("Deep Research AI Agent")
 
-with st.sidebar:
-    st.header("🔧 Configuration")
-    groq_api_key = st.text_input("GROQ API Key", type="password")
-    tavily_api_key = st.text_input("Tavily API Key", type="password")
+# Read GROQ API key from .env
+groq_api_key = os.getenv("GROQ_API_KEY")
+if not groq_api_key:
+    st.error("GROQ_API_KEY not found in .env file")
+    st.stop()
 
+# User query input
 user_query = st.text_area("💬 Enter your search query:", height=200)
 run_button = st.button("Search")
 
+# Helper function to clean <think> blocks
+def remove_think_blocks(text):
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
 if run_button:
-    if not groq_api_key or not tavily_api_key or not user_query:
-        st.warning("Please provide all required inputs in the sidebar and main field.")
+    if not user_query:
+        st.warning("Please enter a search query.")
     else:
         try:
-            # Set API keys
+            # Set GROQ API key in environment
             os.environ["GROQ_API_KEY"] = groq_api_key
-            os.environ["TAVILY_API_KEY"] = tavily_api_key
 
             # Load tools
             api_wrapper_arxiv = ArxivAPIWrapper(top_k_results=2, doc_content_chars_max=500)
@@ -40,17 +49,16 @@ if run_button:
             api_wrapper_wiki = WikipediaAPIWrapper(top_k_results=1, doc_content_chars_max=500)
             wiki = WikipediaQueryRun(api_wrapper=api_wrapper_wiki)
 
-            tavily = TavilySearchResults()
+            tavily = TavilySearchResults()  # no API key required
             tools = [arxiv, wiki, tavily]
 
             # Load LLMs
-            llm = ChatGroq(model="qwen-qwq-32b")
+            llm = ChatGroq(model="llama-3.1-8b-instant")
             llm_with_tools = llm.bind_tools(tools=tools)
             answer_agent = llm.with_config({
-    "system_prompt": "You are a clear and concise research summarizer. Return only the factual information and insights found from tools. Do not reference yourself, do not describe your process, and do not include internal thoughts.",
-    "max_tokens": 1000
-})
-
+                "system_prompt": "You are a clear and concise research summarizer. Return only factual information from tools. Do not reference yourself or internal thoughts.",
+                "max_tokens": 1000
+            })
 
             # Define state schema
             class State(TypedDict):
@@ -77,23 +85,12 @@ if run_button:
             graph = builder.compile()
 
             # Run the query
-            with st.spinner(" Researching..."):
+            with st.spinner("Researching..."):
                 result = graph.invoke({"messages": user_query})
 
-            import re
-
-            def remove_think_blocks(text):
-                return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-            
-            import re
-
-            def remove_think_blocks(text):
-                return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-    
             # Display results
             st.success("Research Complete")
-
-            st.markdown("##Final Answer")
+            st.markdown("## Final Answer")
             for msg in result["messages"]:
                 clean_msg = remove_think_blocks(msg.content)
                 with st.container():
@@ -102,13 +99,12 @@ if run_button:
                         <p style="color:#e0e0e0;font-size:1.05rem;">{clean_msg}</p>
                     </div>
                     """, unsafe_allow_html=True)
-        
-            # Raw message viewer
+
+            # Raw tool outputs
             with st.expander("🧪 Show Raw Tool Outputs"):
                 for i, m in enumerate(result["messages"]):
                     st.markdown(f"**Message {i+1}:**")
                     st.code(m.pretty_repr(), language="json")
 
-
         except Exception as e:
-            st.error(f" An error occurred: {str(e)}")
+            st.error(f"An error occurred: {str(e)}")
